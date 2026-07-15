@@ -5,9 +5,10 @@
  * The cart shared region at $FA0000..$FAFFFF on the m68k mirrors RP
  * RAM starting at __rom_in_ram_start__. This header defines the
  * region's sub-block offsets (cart image, command sentinel, dirty
- * frame counter, indexed shared variables, APP_FREE, framebuffer)
- * plus the cart_asM68kLong() helper for exact-value uint32_t RP→
- * m68k writes (see project_cartbus_long_byteswap memory note).
+ * frame counter, indexed shared variables, palette, audio buffer,
+ * APP_FREE, framebuffer) plus the cart_asM68kLong() helper for
+ * exact-value uint32_t RP→m68k writes (see the
+ * project_cartbus_long_byteswap memory note).
  *
  * The constants used to live in `chandler.h` under the `CHANDLER_*`
  * prefix. The chandler / TPROTOCOL command-channel machinery was
@@ -28,8 +29,11 @@
  * truth, must match target/atarist/src/main.s):
  *
  *   $FA0000  CARTRIDGE             m68k header + code (max 16 KB).
- *                                  Includes the unrolled MOVEM-loop
- *                                  block (fbdrv) at offset $2000.
+ *                                  The unrolled MOVEM-loop cart->ST
+ *                                  copy is emitted inline into
+ *                                  userfw.s by the FBDRV_INLINE
+ *                                  macro (there is no separate
+ *                                  fbdrv block at $2000 any more).
  *   $FA4000  CMD_MAGIC_SENTINEL    4 B  (m68k polls here for
  *                                        NOP / RESET / BOOT_GEM / START)
  *   $FA4004  (reserved)            8 B  (was RANDOM_TOKEN +
@@ -41,10 +45,19 @@
  *                                        the cart->ST blit when this
  *                                        is unchanged since the
  *                                        previous iteration)
- *   $FA4010  SHARED_VARIABLES    240 B  (60 indexed 4-byte slots,
- *                                        app-free).
- *   $FA4100  APP_FREE           ~16.5 KB free arena, ends at FRAMEBUFFER
- *   $FA8300  FRAMEBUFFER          32 KB (320x200 4 bpp low-res)
+ *   $FA4010  SHARED_VARIABLES    240 B  (60 indexed 4-byte slots.
+ *                                        Slots 12..19 hold PALETTE
+ *                                        below -- the other 52 slots
+ *                                        are app-free.)
+ *   $FA4040    PALETTE            32 B  (slots 12..19; 16 ST colour
+ *                                        words, applied to
+ *                                        $FFFF8240.. by the m68k VBL
+ *                                        handler every frame)
+ *   $FA4100  AUDIO_BUFFER       1024 B  (Timer-B (vA,vB) YM volume
+ *                                        pairs; see below)
+ *   $FA4500  APP_FREE          15872 B  (~15.5 KB free arena, ends at
+ *                                        FRAMEBUFFER)
+ *   $FA8300  FRAMEBUFFER       32000 B  (320x200 4 bpp low-res)
  *   $FAFFFF  end of region
  */
 #define CART_CARTRIDGE_CODE_SIZE         0x4000  /* 16 KB cart-image budget */
@@ -71,12 +84,16 @@
 #define CART_PALETTE_ENTRIES             16
 #define CART_PALETTE_SIZE                (CART_PALETTE_ENTRIES * 2)  /* 32 B */
 
-/* Audio sample buffer. Single-channel YM2149 ch A 4-bit DAC: each
- * byte holds a YM volume nibble (0..15) in its low 4 bits. The m68k
- * Timer-B IRQ handler fires at ~6.27 kHz and reads one byte per
- * fire, wrapping the read pointer at CART_AUDIO_BUFFER_SIZE. The
- * RP-side audio.c fills the buffer with samples mapped through a
- * logarithmic LUT (linear PCM -> closest matching YM volume). */
+/* Audio sample buffer. Dual-channel YM2149 PCM: each sample is a
+ * (vA, vB) pair of YM volume nibbles, 2 bytes per sample, giving ~6
+ * effective bits from the YM's log volume curve. The m68k Timer-B
+ * IRQ handler fires at ~5,585 Hz (TIMERB_COUNT=110 in userfw.s) and
+ * reads one pair per fire -- ~112 samples (~224 B) per PAL VBL. The
+ * read cursor (A0) does NOT wrap here: userfw_vbl resets it to the
+ * buffer base every vsync, and the RP-side audio.c rewrites the
+ * whole 1024 B each VBL, so the buffer is overfilled by ~800 B as
+ * drift headroom. audio.c's AUDIO_BYTES_PER_VBL must match the
+ * Timer-B rate (= 2 x fires-per-VBL) or the source pointer drifts. */
 #define CART_AUDIO_BUFFER_OFFSET                                              \
   (CART_SHARED_VARIABLES_OFFSET + (CART_SHARED_VARIABLES_SLOTS * 4))
 #define CART_AUDIO_BUFFER_SIZE           1024

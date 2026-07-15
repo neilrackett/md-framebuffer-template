@@ -42,14 +42,15 @@ hand-off to the ST at 50 Hz. No m68k assembly, no bus timing, no
 double-buffering. `fb_publish()` blocks on the ST's VBL, so one call per
 loop paces the app to 50 Hz.
 
-`README.md` is the human guide; `CLAUDE.md` is the architecture
+`README.md` is the human guide; `AGENTS.md` is the architecture
 deep-dive; `examples/hello_text/` is a minimal working app.
 
 ## Starting a fresh app
 
-**Quick path:** `examples/hello_text/apply.sh` does all of the below — it
-backs up `rp/` to `rp.bak`, deletes the demo/menu files, and installs a
-minimal `emul.c` + `CMakeLists.txt`. The manual steps:
+**Quick path:** `tools/reset_template.sh` does all of the below — it backs
+up `rp/` to `rp.bak`, deletes the demo/menu files, installs a minimal
+`emul.c` + `CMakeLists.txt`, generates a fresh app UUID into `uuid.txt`,
+and resets the version to `v0.0.1`. The manual steps:
 
 1. **Delete the demos**: `rp/src/demo_*.c` (5 files), `rp/src/include/demo.h`,
    and the asset headers (`sidecart_logo.h`, `sidecart_text.h`,
@@ -131,7 +132,7 @@ while (true) {
   Big lookup tables / textures should stay `const` (flash), not RAM.
 - **Build:** `./build.sh <board> <build_type> <uuid>`. Build with the
   dev UUID `44444444-4444-4444-8444-444444444444` (the placeholder in
-  CLAUDE.md keys the app to the wrong identity → it jumps to Booster).
+  AGENTS.md keys the app to the wrong identity → it jumps to Booster).
   The user usually runs the build themselves; only build the **Atari/m68k
   target** if you change `target/atarist/` asm. RP-only C changes don't
   need it.

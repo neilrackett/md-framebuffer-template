@@ -28,14 +28,22 @@ ROM4_ADDR			equ $FA0000
 ; Shared 64 KB region layout (must match rp/src/include/cart_shared.h).
 ;
 ;   $FA0000  CARTRIDGE			m68k header + code (max 16 KB)
-;					Includes the unrolled MOVEM block
-;					(fbdrv.s) at offset $2000.
+;					The unrolled MOVEM cart->ST copy is
+;					emitted inline into userfw.s by the
+;					FBDRV_INLINE macro (no separate
+;					fbdrv block at $2000 any more).
 ;   $FA4000  CMD_MAGIC_SENTINEL_ADDR	4 B
-;   $FA4004  RANDOM_TOKEN_ADDR		4 B  (legacy / unused since Epic 3.8)
-;   $FA4008  RANDOM_TOKEN_SEED_ADDR	4 B  (legacy / unused since Epic 3.8)
+;   $FA4004  RANDOM_TOKEN_ADDR		4 B  (legacy; unused since the
+;					      TPROTOCOL handshake was removed)
+;   $FA4008  RANDOM_TOKEN_SEED_ADDR	4 B  (legacy; as above)
 ;   $FA400C  FB_FRAME_COUNTER_ADDR	4 B
-;   $FA4010  SHARED_VARIABLES		240 B (60 x 4-byte slots, app-free).
-;   $FA4100  APP_FREE_ADDR	      ~16.5 KB free arena, ends at FRAMEBUFFER
+;   $FA4010  SHARED_VARIABLES		240 B (60 x 4-byte slots. Slots 12..19
+;					      hold PALETTE_ADDR below; the other
+;					      52 slots are app-free.)
+;   $FA4040    PALETTE_ADDR		32 B  (slots 12..19; 16 ST colour words
+;					      applied to $FFFF8240.. each VBL)
+;   $FA4100  AUDIO_BUFFER_ADDR	      1024 B  (Timer-B (vA,vB) YM volume pairs)
+;   $FA4500  APP_FREE_ADDR	      15872 B (~15.5 KB arena, ends at FRAMEBUFFER)
 ;   $FA8300  FRAMEBUFFER_ADDR	      32000 B (320x200 4bpp, flush at top)
 ;   $FAFFFF  end of region
 
@@ -52,16 +60,21 @@ PALETTE_SIZE		equ 32						; 16 words
 FRAMEBUFFER_SIZE	equ 32000	; 320x200 low-res (4bpp) framebuffer
 FRAMEBUFFER_ADDR	equ (ROM4_ADDR + $10000 - FRAMEBUFFER_SIZE)	; $FA8300
 
-; Audio sample buffer (256 bytes). YM ch A 4-bit DAC nibbles, one
-; byte per sample. Read sequentially by the m68k Timer-B IRQ handler
-; in userfw.s; filled by RP-side audio.c with log-LUT-mapped samples.
+; Audio sample buffer. Dual-channel YM PCM: each sample is a (vA, vB)
+; pair of volume nibbles, 2 bytes per sample. Read sequentially by the
+; m68k Timer-B IRQ handler in userfw.s (~5,585 Hz, ~112 samples/VBL);
+; the read cursor A0 is reset to the base every vsync by userfw_vbl,
+; and RP-side audio.c rewrites the whole buffer each VBL.
 AUDIO_BUFFER_ADDR	equ (SHARED_BLOCK_ADDR + $100)			; $FA4100
 AUDIO_BUFFER_SIZE	equ 1024
 AUDIO_BUFFER_END	equ (AUDIO_BUFFER_ADDR + AUDIO_BUFFER_SIZE)	; $FA4500
 
 ; APP_FREE starts after the audio buffer.
 APP_FREE_ADDR		equ AUDIO_BUFFER_END				; $FA4500
-FBDRV_ADDR		equ (ROM4_ADDR + $2000)				; $FA2000 (MOVEM loop cart->ST screen copy)
+; Legacy: the entry point of the old standalone fbdrv.s module. The
+; MOVEM cart->ST copy is now inlined into userfw.s by FBDRV_INLINE,
+; so nothing references this any more.
+FBDRV_ADDR		equ (ROM4_ADDR + $2000)				; $FA2000 (unused)
 
 ; Transitional: the pre-Story-1.2 boot UI fills only the first 8000 bytes
 ; of the framebuffer with a 1bpp u8g2 image, and the .print_loop_low
@@ -72,9 +85,11 @@ MONO_UI_BUFFER_SIZE	equ 8000
 
 ; User firmware entry point. The cartridge image places userfw.s at
 ; offset $0800 of BOOT.BIN via target/atarist/src/userfw.ld; main.s
-; gets the first 2 KB ($0000..$07FF), userfw gets the next 6 KB
-; ($0800..$1FFF), and fbdrv.s occupies the rest of the 16 KB cart
-; budget ($2000..$3FFF). The CARTRIDGE_CODE_SIZE = 16 KB cap covers all.
+; gets the first 2 KB ($0000..$07FF) and userfw.s gets everything from
+; $0800 up to the CARTRIDGE_CODE_SIZE = 16 KB cap -- its code plus the
+; inline FBDRV_INLINE MOVEM expansion. (fbdrv.s used to be a separate
+; module pinned at $2000; it is now emitted inline, so there is no
+; fixed split above $0800.)
 USERFW			equ (ROM4_ADDR + $800)				; $FA0800
 
 SCREEN_SIZE			equ (-4096)	; Use the memory before the screen memory to store the copied code

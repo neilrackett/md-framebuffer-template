@@ -27,6 +27,12 @@ examples/hello_text/apply.sh    # backs up rp/ -> rp.bak, then customizes rp/
 # flash dist/<uuid>-<version>.uf2 to the Pico
 ```
 
+`apply.sh` only swaps `rp/` over to this example — use it to try the
+example as-is. To start a **new app** from the template, run
+`tools/reset_template.sh` instead: it runs `apply.sh` for you and also
+generates a fresh app UUID into `uuid.txt` and resets the version to
+`v0.0.1`.
+
 `apply.sh` is reversible — it refuses to clobber an existing `rp.bak`, and
 to undo everything:
 
@@ -59,5 +65,5 @@ You should see "HELLO ATARI ST" bouncing around the screen at 50 Hz.
   direct `fb_chunked_buffer[y * FB_CHUNKED_W + x] = idx`, palette changes.
 - Swap the audio (`audio_play_loop` / `audio_set_fill_callback`), or delete
   the audio lines for silence.
-- Full API in the repo `README.md`; architecture in `CLAUDE.md`; the
+- Full API in the repo `README.md`; architecture in `AGENTS.md`; the
   `framebuffer-app` Claude skill (`.claude/skills/`) can drive the work.

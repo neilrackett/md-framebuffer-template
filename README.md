@@ -76,18 +76,19 @@ released to run the app normally.
 The template includes a boot menu and four demos as worked examples.
 For your own app, remove them and wire your code into the main loop.
 
-**The quick way:** `examples/hello_text/apply.sh` does all of this for you
-— it backs up `rp/` to `rp.bak`, deletes the demo/menu files below, and
-drops in a minimal `emul.c` + `CMakeLists.txt`. Run it, then build:
+**The quick way:** `tools/reset_template.sh` does all of this for you — it
+backs up `rp/` to `rp.bak`, deletes the demo/menu files below, drops in a
+minimal `emul.c` + `CMakeLists.txt`, generates a fresh app UUID into
+`uuid.txt`, and resets the version to `v0.0.1`. Run it, then build:
 
 ```bash
-examples/hello_text/apply.sh
-./build.sh pico_w release 44444444-4444-4444-8444-444444444444
-# revert anytime with:  rm -rf rp && mv rp.bak rp
+tools/reset_template.sh
+make build      # picks up the UUID from uuid.txt
+# the script prints revert instructions when it finishes
 ```
 
-The rest of this section is what `apply.sh` automates, for when you'd
-rather strip the demos by hand.
+The rest of this section is what `reset_template.sh` automates, for when
+you'd rather strip the demos by hand.
 
 ### Files to **delete** (demo / menu only)
 
@@ -210,13 +211,13 @@ frame, so calling it once per loop naturally paces your app to 50 Hz.
 ## 4. Your first app — moving text
 
 This whole section is a ready-to-build app in **`examples/hello_text/`**.
-From a fresh checkout, `apply.sh` backs up `rp/` to `rp.bak` and swaps in
-the stripped app:
+From a fresh checkout, `tools/reset_template.sh` backs up `rp/` to `rp.bak`
+and swaps in the stripped app:
 
 ```bash
-examples/hello_text/apply.sh    # backup rp/ -> rp.bak, strip demos, install
-./build.sh pico_w release 44444444-4444-4444-8444-444444444444
-# revert any time:  rm -rf rp && mv rp.bak rp
+tools/reset_template.sh    # backup rp/ -> rp.bak, strip demos, install
+make build                 # picks up the UUID from uuid.txt
+# the script prints revert instructions when it finishes
 ```
 
 Here it is — replace the demo block in `rp/src/emul.c`'s main loop with
@@ -452,8 +453,9 @@ addressing, and a dual-core band split via `fb_core1_dispatch()`.
 
 ## More docs
 
-- `CLAUDE.md` — architecture deep-dive (the framebuffer pipeline, shared
-  region, IKBD/audio internals). The reference for AI-assisted work.
+- `AGENTS.md` — architecture deep-dive (the framebuffer pipeline, shared
+  region, IKBD/audio internals) plus the build troubleshooting table. The
+  reference for AI-assisted work; `CLAUDE.md` just imports it.
 - `programming.md` — shared-region table + budget rules.
 - Official build/usage docs:
   <https://docs.sidecartridge.com/sidecartridge-multidevice/programming/>.
