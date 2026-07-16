@@ -254,3 +254,17 @@ docs, or any other artifact. This means **no**:
 
 Write the message as the human author. Do not mention AI tools used to
 produce the work.
+
+### 6. Copyright headers
+
+Always include the appropriate copyright notice at the top of every source file
+that is created or modified in the following format, where `[AUTHOR_NAME]` is 
+the name of the human author:
+
+```c
+/*
+ * Copyright (C) 2026 [AUTHOR_NAME]
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+```
