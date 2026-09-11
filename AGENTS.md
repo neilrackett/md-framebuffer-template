@@ -195,8 +195,12 @@ The RP2040's 2 MB flash is sliced into named regions, and code is responsible fo
 | `CONFIG_FLASH` | `0x101E0000` | 120 K | 30 sectors of per-app config |
 | `GLOBAL_LOOKUP_FLASH` | `0x101FE000` | 4 K | UUID → config-sector lookup |
 | `GLOBAL_CONFIG_FLASH` | `0x101FF000` | 4 K | Global config |
-| `RAM` | `0x20000000` | 128 K | Normal RAM |
-| `ROM_IN_RAM` | `0x20020000` | 128 K | ROM data mirrored to RAM for fast bus access |
+| `RAM` | `0x20000000` | 192 K | `.data` / `.bss` / heap |
+| `ROM_IN_RAM` | `0x20030000` | 64 K | The shared cartridge region, mirrored to RAM for fast bus access |
+| `SCRATCH_X` | `0x20040000` | 4 K | Core 1 stack |
+| `SCRATCH_Y` | `0x20041000` | 4 K | Core 0 stack |
+
+**The heap is hard-capped at the cart-region boundary.** `__StackLimit = ORIGIN(RAM) + LENGTH(RAM)` = `0x20030000` = `ORIGIN(ROM_IN_RAM)`, and pico-sdk's `_sbrk` bounds the heap by that symbol, so a heap that would otherwise grow into `ROM_IN_RAM` fails the allocation instead of silently handing out cartridge memory. `ASSERT(__StackLimit >= __HeapLimit)` catches the static half of the same overrun at link time. Budget accordingly: the settings library alone mallocs ~13 KB at boot.
 
 The build assumes Core 0 owns flash writes (`PICO_FLASH_ASSUME_CORE0_SAFE=1`). The PIO bus emulation runs hot — Core 0 also overclocks to 225 MHz at `VREG_VOLTAGE_1_10`. **Core 1 is owned by `fb_c2p_core1_loop`** (the chunky-to-planar bottom-half worker, see `fb_chunked.c`); apps that want Core 1 for other purposes need to replace that worker or refactor the conversion pipeline.
 

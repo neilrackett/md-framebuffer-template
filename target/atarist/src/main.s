@@ -51,8 +51,8 @@ CARTRIDGE_CODE_SIZE	equ $4000	; 16 KB max for cartridge header + code + fbdrv
 SHARED_BLOCK_ADDR	equ (ROM4_ADDR + CARTRIDGE_CODE_SIZE)		; $FA4000
 CMD_MAGIC_SENTINEL_ADDR	equ SHARED_BLOCK_ADDR				; $FA4000
 
-; 16-entry ST palette slot (Epic 5). 32 bytes of 16-bit palette
-; words published by the RP, applied to $FFFF8240..$FFFF825E by
+; 16-entry ST palette slot. 32 bytes of 16-bit palette words
+; published by the RP, applied to $FFFF8240..$FFFF825E by
 ; userfw_vbl_loop. Slot 12 of SHARED_VARIABLES (offset +$30).
 PALETTE_ADDR		equ (SHARED_BLOCK_ADDR + $40)			; $FA4040
 PALETTE_SIZE		equ 32						; 16 words
@@ -76,11 +76,11 @@ APP_FREE_ADDR		equ AUDIO_BUFFER_END				; $FA4500
 ; so nothing references this any more.
 FBDRV_ADDR		equ (ROM4_ADDR + $2000)				; $FA2000 (unused)
 
-; Transitional: the pre-Story-1.2 boot UI fills only the first 8000 bytes
+; Transitional: the old mono boot UI filled only the first 8000 bytes
 ; of the framebuffer with a 1bpp u8g2 image, and the .print_loop_low
-; copy loop below expands that mono buffer to fit the 32000-byte ST
-; screen. Story 1.2.6+ replaces that loop with the native 4bpp fbdrv
-; copy and this constant goes away.
+; copy loop below expanded that mono buffer to fit the 32000-byte ST
+; screen. The native 4bpp fbdrv copy replaces that loop, and this
+; constant goes away with it.
 MONO_UI_BUFFER_SIZE	equ 8000
 
 ; User firmware entry point. The cartridge image places userfw.s at
@@ -285,9 +285,9 @@ start_rom_code:
 	cmp.w #2, d0
 	beq .highres_unsupported
 
-; Story 1.2: the old mono boot-UI loop (.print_loop_low, which read the
-; first 8 KB of the cartridge framebuffer and expanded it 1bpp -> 4bpp
-; into the ST screen) is gone. With u8g2 removed there's nothing left
+; The old mono boot-UI loop (.print_loop_low, which read the first
+; 8 KB of the cartridge framebuffer and expanded it 1bpp -> 4bpp into
+; the ST screen) is gone. With u8g2 removed there's nothing left
 ; to render in mono, and the expander mis-mapped any 4bpp content
 ; written to the cart FB (40 cart bytes -> 1 ST row, so rows 0..4 of
 ; a 4bpp image landed on ST rows 0, 4, 8, 12, 16). Boot straight into
