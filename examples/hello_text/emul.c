@@ -82,8 +82,11 @@ void emul_start() {
     DPRINTF("SD card unavailable. Continuing without SD.\n");
   }
 
-  /* Loop the baked-in jingle. Delete these two lines for a silent app. */
-  audio_play_loop(audio_sample_data, (uint32_t)sizeof(audio_sample_data));
+  /* Loop the baked-in jingle -- unsigned 8-bit PCM, cooked per VBL for
+   * whichever sound hardware the machine has (STE DMA or YM). Delete
+   * these two lines for a silent app. */
+  audio_play_loop(audio_sample_data, (uint32_t)sizeof(audio_sample_data),
+                  AUDIO_SAMPLE_RATE_HZ);
 
   select_configure();
 

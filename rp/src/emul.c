@@ -93,11 +93,13 @@ void emul_start() {
   // the next VBL picks it up.
   palette_init();
 
-  // Initialise the cart audio buffer producer (see audio.h). The
-  // m68k Timer-B IRQ in userfw.s consumes the buffer at ~5,585 Hz
-  // (2 B/sample dual-channel mode). audio_init() leaves the buffer
-  // silent until a callback is installed; the playback source is
-  // chosen below, after the SD card has had a chance to mount.
+  // Initialise the cart audio buffer producer (see audio.h). Which
+  // back-end drains the buffer -- STE DMA sound at 25 kHz or the YM
+  // Timer-B DAC at ~5,585 Hz -- is detected by userfw.s at boot and
+  // reported over the cart bus, so nothing here has to care.
+  // audio_init() leaves the buffer silent until a callback is
+  // installed; the playback source is chosen below, after the SD
+  // card has had a chance to mount.
   audio_init();
 
   // SD card -- best-effort. Apps that need persistent storage can
@@ -112,15 +114,17 @@ void emul_start() {
     DPRINTF("SD card unavailable. Continuing without SD.\n");
   }
 
-  // Audio source selection. Try to stream a
-  // .YMS file from the app folder first; on any failure (no SD,
-  // file missing, bad header, rate mismatch) fall back to the
-  // baked-in Ghostbusters G1 jingle so the demo still has audio.
-  // Apps swap their own audio_play_yms_file path or replace this
-  // block with audio_set_fill_callback() / audio_play_loop().
+  // Audio source selection. Both sources are plain unsigned 8-bit
+  // PCM -- the library resamples and cooks them for whichever
+  // back-end the machine has. Try to stream a .YMS file from the app
+  // folder first; on any failure (no SD, file missing, bad header,
+  // unsupported mode) fall back to the baked-in Ghostbusters G1
+  // jingle so the demo still has audio. Apps swap their own
+  // audio_play_yms_file path or replace this block with
+  // audio_set_fill_callback() / audio_play_loop().
   if (audio_play_yms_file("DEMO.YMS") < 0) {
-    audio_play_loop(audio_sample_data,
-                    (uint32_t)sizeof(audio_sample_data));
+    audio_play_loop(audio_sample_data, (uint32_t)sizeof(audio_sample_data),
+                    AUDIO_SAMPLE_RATE_HZ);
   }
 
   // Cartridge SELECT button -- apps can poll select_isPressed().

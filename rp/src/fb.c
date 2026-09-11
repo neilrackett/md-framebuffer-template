@@ -14,6 +14,7 @@
 
 #include <string.h>
 
+#include "audio.h"
 #include "cart_shared.h"
 #include "commemul.h"
 #include "debug.h"
@@ -250,12 +251,13 @@ void fb_render_frame(void) {
 }
 
 /* ROM3 ring dispatch: route each captured cart-bus read to the IKBD
- * demux and to the VBL frame-sync detector. */
+ * demux, the VBL frame-sync detector and the audio report decoder. */
 static void fb_rom3_dispatch(uint16_t sample) {
   ikbd_consume_rom3_sample(sample);
   if ((sample & FB_VBLSYNC_HIMASK) == FB_VBLSYNC_HIBYTE) {
     s_vbl_seen++;
   }
+  audio_consume_rom3_sample(sample);
 }
 
 void fb_pump_rom3(void) { commemul_poll(fb_rom3_dispatch); }

@@ -88,9 +88,13 @@ palette_set_entry(2, PALETTE_RGB(7, 0, 0));    // or palette_set(entries[16])
 fb_publish();                                  // once per frame, after drawing
 // input: ikbd.h
 ikbd_key_event_t k; while (ikbd_pop_key(&k)) { if (k.is_press) ... }  // k.scancode
-// audio: audio.h
-audio_play_loop(data, bytes);                  // loop a baked-in buffer, OR
-audio_set_fill_callback(cb);                   // cb(buf,bytes) per VBL, live
+// audio: audio.h  (unsigned 8-bit mono PCM in; STE DMA or YM out, auto-detected)
+audio_play_loop(pcm, bytes, rate_hz);          // loop a baked-in buffer, OR
+audio_play_yms_file("X.YMS");                  // stream PCM from SD, OR
+audio_set_fill_callback(cb);                   // cb(buf,bytes) per VBL, live:
+                                               // switch on audio_get_mode() --
+                                               // DMA = 500 signed samples,
+                                               // YM = 224 B of (vA,vB) pairs
 audio_render_frame();                          // call every loop iteration
 ```
 

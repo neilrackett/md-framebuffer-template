@@ -14,7 +14,7 @@
 # holds stays available in CLAUDE.md, programming.md and the
 # framebuffer-app skill, and git restores it (see Revert below).
 #
-# Revert with:  rm -rf rp && mv rp.bak rp
+# Revert with:  rm -rf rp assets && mv rp.bak rp && mv assets.bak assets
 #               git checkout version.txt rp/version.txt target/version.txt \
 #                            CHANGELOG.md README.md
 #               rm -f uuid.txt
@@ -27,8 +27,9 @@ cd "$ROOT"
 
 RESET_VERSION="v0.0.1"
 
-# Strip the demos first. apply.sh refuses to clobber an existing rp.bak, so
-# running it up front means that failure aborts before anything else is reset.
+# Strip the demos and the template's asset sources first. apply.sh refuses to
+# clobber an existing backup, so running it up front means that failure aborts
+# before anything else is reset.
 "$ROOT/examples/hello_text/apply.sh"
 
 echo "Generating a new app UUID ..."
@@ -76,10 +77,10 @@ Done. The template is reset for a new app.
 
   App UUID:  $APP_UUID (uuid.txt)
   Version:   $RESET_VERSION
-  Demos:     stripped -- the original rp/ is backed up in rp.bak
+  Demos:     stripped -- the originals are backed up in rp.bak / assets.bak
 
   Build:   make debug
-  Revert:  rm -rf rp && mv rp.bak rp
+  Revert:  rm -rf rp assets && mv rp.bak rp && mv assets.bak assets
            git checkout version.txt rp/version.txt target/version.txt \\
                         CHANGELOG.md README.md
            rm -f uuid.txt

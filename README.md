@@ -105,7 +105,9 @@ rp/src/demo_cojorotozoom.c    rp/src/include/sprites_data.h
 ```
 
 Keep `tools/png_to_texture.py` and `tools/wav_to_ym4.py` — they convert
-your *own* image/audio assets into headers.
+your *own* image/audio assets into headers. (`assets/demo_jingle.sam` is
+the source the bundled `audio_sample.h` was generated from; drop it once
+you've swapped in your own audio.)
 
 ### Files to **change**
 
@@ -301,28 +303,50 @@ your own graphics.
 
 ## 5. Audio (`audio.h`)
 
-The firmware streams a 1 KB cart buffer to the YM2149 every VBL. You
-supply the bytes one of two ways.
+The firmware streams a 1 KB cart buffer to the ST's sound hardware every
+VBL. **Which hardware is picked automatically**: `userfw.s` checks the
+`_SND` cookie at boot and reports the answer to the RP over the cart bus,
+so the same app gets
+
+| Machine | Back-end | Quality | CPU cost on the ST |
+| --- | --- | --- | --- |
+| STE / Mega STE / TT | DMA sound | 25,033 Hz, 8-bit | none (DMA) |
+| ST / Mega ST | YM2149 Timer-B DAC | 5,585 Hz, ~6-bit | ~8% of the VBL |
+
+You supply **unsigned 8-bit mono PCM** (silence = `0x80`) at any rate up
+to 25,600 Hz and the library resamples and cooks it for whichever
+back-end is live — one asset, every machine.
 
 ### Loop a baked-in buffer
 
 Convert a `.wav`/`.sam` to a header with `tools/wav_to_ym4.py`, then:
 
 ```c
-#include "audio_sample.h"   // generates audio_sample_data[]
+#include "audio_sample.h"   // generates audio_sample_data[] + AUDIO_SAMPLE_RATE_HZ
 audio_init();               // once at boot
-audio_play_loop(audio_sample_data, sizeof(audio_sample_data));
+audio_play_loop(audio_sample_data, sizeof(audio_sample_data),
+                AUDIO_SAMPLE_RATE_HZ);
 // ... then call audio_render_frame() once per main-loop iteration.
+```
+
+Generate at the DMA rate to get the STE's full quality — the YM path
+box-averages it down at runtime:
+
+```sh
+python tools/wav_to_ym4.py my.wav --header-output rp/src/include/audio_sample.h
+# defaults: --mode raw-byte --target-rate 25033
 ```
 
 ### Generate audio live (callback)
 
 For dynamic sound, install a fill callback. The library calls it once per
-VBL with the exact byte count the m68k will consume (224 = 112 stereo
-samples at ~5,585 Hz):
+VBL with the byte count the live back-end will consume, and the callback
+writes that back-end's format — check `audio_get_mode()`:
 
 ```c
 static void my_fill(uint8_t *buf, uint32_t bytes) {
+    // AUDIO_MODE_DMA: bytes = 500 signed 8-bit samples
+    // AUDIO_MODE_YM:  bytes = 224 = 112 (chA vol, chB vol) pairs
     for (uint32_t i = 0; i < bytes; i++) buf[i] = next_sample_byte();
 }
 audio_set_fill_callback(my_fill);   // pass NULL for silence
@@ -330,7 +354,10 @@ audio_set_fill_callback(my_fill);   // pass NULL for silence
 
 Either way, **`audio_render_frame()` must be called each loop iteration**
 (it self-paces to ~50 Hz). There's also `audio_play_yms_file(path)` to
-stream a `.YMS` file from SD — see §6.
+stream a `.YMS` file of the same PCM from SD — see §6.
+
+> Testing the YM fallback without a plain ST: build the m68k side with
+> `-DFORCE_NO_DMA=1` and detection reports "no DMA" on any machine.
 
 ---
 
@@ -436,7 +463,7 @@ emul_start():
         while ikbd_pop_key(&k):  <handle key>
         <draw your frame into fb_chunked_buffer>
         fb_publish();            // tear-free 50 Hz hand-off to the ST
-        audio_render_frame();    // refill the YM buffer
+        audio_render_frame();    // refill the audio buffer
 ```
 
 You own the `<...>` lines; the rest is the template's plumbing.
