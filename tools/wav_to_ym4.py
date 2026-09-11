@@ -343,9 +343,10 @@ def _header_guard_from_path(path: pathlib.Path) -> str:
 
 
 # YMS mode tags: must stay in sync with AUDIO_YMS_MODE_* in
-# rp/src/audio.c. The RP-side audio_play_yms_file() currently only
-# accepts tag 1 (dual-ghost); other tags are reserved for future
-# m68k handler variants.
+# rp/src/audio.c. The RP-side audio_play_yms_file() accepts only tag 3
+# (raw-byte) -- unsigned 8-bit PCM is the one body format the firmware
+# can cook for BOTH back-ends (STE DMA and YM). The pre-cooked YM
+# modes are kept for m68k handlers that play them directly.
 YMS_MODE_TAGS: dict[str, int] = {
     "dual-ghost": 1,
     "single-a":   2,
@@ -367,7 +368,8 @@ def _write_yms_file(
         off  0:  'Y' 'M' 'S' '1'        magic
         off  4:  uint32 rate_hz         LE
         off  8:  uint32 data_len_bytes  LE
-        off 12:  uint8  mode_tag        (1 = dual-ghost)
+        off 12:  uint8  mode_tag        (3 = raw-byte; what the
+                                         RP firmware plays)
         off 13:  uint8[3]              reserved (must be 0)
         off 16:  raw byte body
     """
@@ -382,12 +384,34 @@ def _write_yms_file(
         out.write(data)
 
 
+# Body-format blurb emitted into the generated C header, per mode.
+HEADER_BLURBS: dict[str, str] = {
+    "raw-byte":
+        "/* One byte per sample: unsigned 8-bit mono PCM (silence =\n"
+        " * 0x80), verbatim. This is the format audio_play_loop()\n"
+        " * wants -- the RP cooks it per VBL into signed PCM for STE\n"
+        " * DMA sound or Ghostbusters (vA, vB) pairs for the YM. */\n",
+    "dual-ghost":
+        "/* Two bytes per sample: byte 2n = channel A volume, byte 2n+1\n"
+        " * = channel B volume. The (A, B) pairs are precomputed so the\n"
+        " * summed YM acoustic amplitudes best fit the linear-biased\n"
+        " * PCM value (Ghostbusters-style 2-channel pseudo-DAC). */\n",
+    "single-a":
+        "/* One byte per sample: channel A volume only (4-bit log DAC;\n"
+        " * pair with mixer R7 = $FE). */\n",
+}
+DEFAULT_BLURB = (
+    "/* Four bytes per sample: MOVEP.L-packed YM volume registers. */\n"
+)
+
+
 def _write_c_header(
     samples: list[int],
     out_path: pathlib.Path,
     symbol: str,
     count_symbol: str,
     target_rate: int,
+    mode: str,
 ) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     guard = _header_guard_from_path(out_path)
@@ -397,12 +421,7 @@ def _write_c_header(
         out.write(f"#define {guard}\n\n")
         out.write("#include <stdint.h>\n\n")
         out.write(f"#define AUDIO_SAMPLE_RATE_HZ {target_rate}u\n\n")
-        out.write(
-            "/* Two bytes per sample: byte 2n = channel A volume, byte 2n+1\n"
-            " * = channel B volume. The (A, B) pairs are precomputed so the\n"
-            " * summed YM acoustic amplitudes best fit the linear-biased\n"
-            " * PCM value (Ghostbusters-style 2-channel pseudo-DAC). */\n"
-        )
+        out.write(HEADER_BLURBS.get(mode, DEFAULT_BLURB))
         out.write(f"static const uint8_t {symbol}[] = {{\n")
         per_line = 16
         for start in range(0, len(samples), per_line):
@@ -418,19 +437,25 @@ def _write_c_header(
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        description="Convert WAV (or raw Atari .SAM) to a C header of "
-                    "MOVEP.L-packed 4-bit YM volume pairs."
+        description="Convert WAV (or raw Atari .SAM) to audio the "
+                    "firmware can play: unsigned 8-bit PCM for the "
+                    "universal path (default), or a pre-cooked YM "
+                    "volume-register stream."
     )
     p.add_argument("input_path", type=pathlib.Path,
                    help="Input WAV (.wav) or raw 8-bit unsigned PCM (.sam)")
     p.add_argument("--source-rate", type=int, default=12500,
                    help="Source sample rate for .SAM input (ignored for WAV); "
                         "Atari ST samplers typically used 6250/12500/18500/25000 Hz")
-    p.add_argument("--target-rate", type=int, default=15350)
+    p.add_argument("--target-rate", type=int, default=25033,
+                   help="Output sample rate. Default 25033 = the STE DMA "
+                        "rate, the highest the firmware uses; the YM path "
+                        "box-averages it down at runtime. Anything up to "
+                        "25600 Hz works.")
     p.add_argument("--mode",
                    choices=["nibble", "best-pair", "ghostbusters",
                             "dual-ghost", "single-a", "raw-byte"],
-                   default="ghostbusters",
+                   default="raw-byte",
                    help="PCM-to-YM mapping. 'nibble': split 8-bit sample "
                         "into high/low nibbles -> (chA, chB). 'best-pair': "
                         "search all 256 (A,B) pairs for closest acoustic "
@@ -440,9 +465,12 @@ def parse_args() -> argparse.Namespace:
                         "bytes/sample (vA, vB) for non-MOVEP handlers. "
                         "'single-a': single-channel 4-bit DAC on ch A only "
                         "(ch B always 0; pair with mixer R7=$FE). "
-                        "'raw-byte': 1 byte/sample = unsigned 8-bit PCM "
-                        "verbatim (no LUT, no nibble split) -- m68k "
-                        "extracts nibbles at runtime.")
+                        "'raw-byte' (default): 1 byte/sample = unsigned "
+                        "8-bit PCM verbatim -- the universal format, cooked "
+                        "on the RP per VBL for whichever back-end the "
+                        "machine has (STE DMA or YM). The other modes are "
+                        "pre-cooked for the YM only and cannot feed DMA "
+                        "sound.")
     p.add_argument("--lut-scale", type=float, default=1.0,
                    help="Range compression for the (A,B) pair search: "
                         "1.0 = full YM sum range [0, 2.0] (default); "
@@ -501,7 +529,8 @@ def main() -> int:
 
     if args.header_output:
         _write_c_header(
-            ym4, args.header_output, args.symbol, args.count_symbol, args.target_rate
+            ym4, args.header_output, args.symbol, args.count_symbol,
+            args.target_rate, args.mode,
         )
     if args.yms_output:
         _write_yms_file(ym4, args.yms_output, args.target_rate, args.mode)

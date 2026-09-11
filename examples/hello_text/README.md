@@ -16,22 +16,22 @@ demos stripped out, so it shows the minimal shape: clear → draw → animate
   the whole app.
 - **`CMakeLists.txt`** — a copy of `rp/src/CMakeLists.txt` with the five
   `demo_*.c` sources and the `hardware_interp` link removed.
-- **`apply.sh`** — backs up `rp/` to `rp.bak`, then customizes `rp/` to
-  build this example.
+- **`apply.sh`** — backs up `rp/` to `rp.bak` and `assets/` to
+  `assets.bak`, then customizes `rp/` to build this example.
 
 ## Build it (the easy way)
 
 ```bash
-examples/hello_text/apply.sh    # backs up rp/ -> rp.bak, then customizes rp/
+examples/hello_text/apply.sh    # backs up rp/ + assets/, then customizes rp/
 ./build.sh pico_w release 44444444-4444-4444-8444-444444444444
 # flash dist/<uuid>-<version>.uf2 to the Pico
 ```
 
-`apply.sh` is reversible — it refuses to clobber an existing `rp.bak`, and
+`apply.sh` is reversible — it refuses to clobber an existing backup, and
 to undo everything:
 
 ```bash
-rm -rf rp && mv rp.bak rp
+rm -rf rp assets && mv rp.bak rp && mv assets.bak assets
 ```
 
 You should see "HELLO ATARI ST" bouncing around the screen at 50 Hz.
@@ -39,10 +39,13 @@ You should see "HELLO ATARI ST" bouncing around the screen at 50 Hz.
 <details>
 <summary>Or do it by hand</summary>
 
-1. Delete the demo files:
+1. Delete the demo files and the template's asset sources (`assets/`
+   holds what the bundled headers were generated from — a new app brings
+   its own):
    ```bash
    rm rp/src/demo_*.c \
       rp/src/include/{demo,sidecart_logo,sidecart_text,solid3d,sprites_data,cojo_texture,cojo_font,diego_sprite,uridium_surface}.h
+   rm -rf assets
    ```
 2. Replace the build config and the app:
    ```bash
