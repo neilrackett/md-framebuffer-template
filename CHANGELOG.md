@@ -15,6 +15,10 @@
   `audio.h`, for fill callbacks that cook their own audio, plus
   `audio_get_fill_bytes()` / `audio_set_fill_bytes()` and
   `audio_consume_rom3_sample()`.
+- `commemul_scan()` in `commemul.h` (from MD/DOOM): looks at the ROM3
+  ring without consuming it, for an interrupt handler that watches for
+  one kind of cart-bus read (the VBL ack, say) while the main loop drains
+  the ring. EmuMD provides it as well.
 
 ### Fixed
 - **STE DMA sound no longer bursts into noise every few minutes.** The
